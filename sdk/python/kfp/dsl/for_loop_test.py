@@ -289,6 +289,34 @@ class ForLoopTest(parameterized.TestCase):
         ):
             for_loop.LoopParameterArgument.from_raw_items(items, name_code='1')
 
+    @parameterized.parameters(
+        {
+            'items': [{'a': 1}, {'b': 2}],
+            'message': r"same keys\. Item 0 has keys \['a'\], but item 1 has keys \['b'\]",
+        },
+        {
+            'items': [{'a': 1, 'b': 2}, {'a': 3}],
+            'message': r"same keys\. Item 0 has keys \['a', 'b'\], but item 1 has keys \['a'\]",
+        },
+        {
+            'items': [{'a': 1}, {'a': 2}, {}],
+            'message': r"same keys\. Item 0 has keys \['a'\], but item 2 has keys \[\]",
+        },
+        {
+            'items': [{'a': 1}, 5],
+            'message': r'must be dictionaries when the first item is a dictionary\. Item 1 is 5\.',
+        },
+    )
+    def test_from_raw_items_mismatched_dicts_raise(self, items, message):
+        with self.assertRaisesRegex(ValueError, message):
+            for_loop.LoopParameterArgument.from_raw_items(items, name_code='1')
+
+    def test_from_raw_items_dicts_with_same_keys(self):
+        loop_argument = for_loop.LoopParameterArgument.from_raw_items(
+            [{'a': 1, 'b': 2}, {'b': 3, 'a': 4}], name_code='1'
+        )
+        self.assertEqual(loop_argument.channel_type, 'Dict[str, int]')
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -69,6 +69,37 @@ def _get_subvar_type(type_name: str) -> Optional[str]:
     return match['value_type'].lstrip().rstrip() if match else None
 
 
+def _validate_dict_items(item_list: ItemList) -> None:
+    """Checks that every item has the same keys when the items are dicts.
+
+    The keys of the first item define the loop item's fields, and each
+    field is looked up per iteration at run time. An item that is not a
+    dict, or that has other keys, would only fail when its iteration runs.
+
+    Args:
+        item_list: List of items to loop over.
+    Raises:
+        ValueError: If the first item is a dict and another item is not a
+            dict or does not have the same keys.
+    """
+    first_element = item_list[0]
+    if not isinstance(first_element, dict):
+        return
+    expected_keys = set(first_element.keys())
+    for index, item in enumerate(item_list[1:], start=1):
+        if not isinstance(item, dict):
+            raise ValueError(
+                'All items in ParallelFor must be dictionaries when the first '
+                f'item is a dictionary. Item {index} is {item!r}.'
+            )
+        if set(item.keys()) != expected_keys:
+            raise ValueError(
+                'All dictionary items in ParallelFor must have the same keys. '
+                f'Item 0 has keys {sorted(map(str, expected_keys))}, but item '
+                f'{index} has keys {sorted(map(str, item.keys()))}.'
+            )
+
+
 def _get_first_element_type(item_list: ItemList) -> str:
     """Returns the type of the first element of ItemList.
 
@@ -228,10 +259,13 @@ class LoopParameterArgument(pipeline_channel.PipelineParameterChannel):
         if len(raw_items) == 0:
             raise ValueError('Got an empty item list for loop argument.')
 
+        channel_type = _get_first_element_type(raw_items)
+        _validate_dict_items(raw_items)
+
         return LoopParameterArgument(
             items=raw_items,
             name_code=name_code,
-            channel_type=_get_first_element_type(raw_items),
+            channel_type=channel_type,
         )
 
 
