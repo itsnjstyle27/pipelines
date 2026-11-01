@@ -1636,10 +1636,12 @@ class Client:
                 datetime.datetime.now() - start_time
             ).total_seconds()
             logging.info('Waiting for the job to complete...')
-            if elapsed_time > timeout:
-                raise TimeoutError('Run timeout')
+            # Check the state first, so that a run that finished before this
+            # poll is returned even when the poll comes after the timeout.
             if state is not None and state.lower() in finish_states:
                 return get_run_response
+            if elapsed_time > timeout:
+                raise TimeoutError('Run timeout')
             time.sleep(sleep_duration)
 
     def upload_pipeline(

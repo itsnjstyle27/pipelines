@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import datetime
 import json
 import os
 import sys
@@ -374,6 +375,39 @@ class TestClient(parameterized.TestCase):
                     run_id='foo', timeout=1, sleep_duration=0
                 )
                 mock_get_run.assert_called_once_with(run_id='foo')
+
+    def test_wait_for_run_completion_returns_run_that_finished_by_timeout(
+        self,
+    ):
+        # The poll that finds the run finished comes after the timeout.
+        start = datetime.datetime(2026, 1, 1)
+        fake_datetime = Mock(
+            datetime=Mock(
+                now=Mock(
+                    side_effect=[
+                        start,
+                        start,
+                        start + datetime.timedelta(seconds=11),
+                    ]
+                )
+            ),
+            timedelta=datetime.timedelta,
+        )
+        with (
+            patch.object(client, 'datetime', fake_datetime),
+            patch.object(
+                self.client._run_api, 'run_service_get_run'
+            ) as mock_get_run,
+        ):
+            mock_get_run.side_effect = [
+                Mock(state='RUNNING'),
+                Mock(state='SUCCEEDED'),
+            ]
+            response = self.client.wait_for_run_completion(
+                run_id='foo', timeout=10, sleep_duration=0
+            )
+            self.assertEqual(response.state, 'SUCCEEDED')
+            self.assertEqual(mock_get_run.call_count, 2)
 
     @parameterized.parameters(None, 'test-ns')
     def test_get_pipeline_id_passes_namespace(self, namespace):
