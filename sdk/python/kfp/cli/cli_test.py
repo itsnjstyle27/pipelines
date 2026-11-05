@@ -305,6 +305,49 @@ def my_pipeline():
             caching_options = task['cachingOptions']
             self.assertEqual(caching_options.get('enableCache'), True)
 
+    def test_compile_file_with_any_name(self):
+        # A file name that isn't a valid module name, or that matches an
+        # already imported module, used to fail or compile the wrong module.
+        for filename in ['my.pipeline.py', 'types.py', 'yaml.py']:
+            with self.subTest(filename=filename):
+                pipeline_file = os.path.join(self.temp_dir.name, filename)
+                with open(self.create_pipeline_file().name, 'rb') as src:
+                    with open(pipeline_file, 'wb') as dst:
+                        dst.write(src.read())
+                output_file = os.path.join(self.temp_dir.name, 'output.yaml')
+
+                result = self.invoke(
+                    ['--py', pipeline_file, '--output', output_file]
+                )
+
+                self.assertEqual(result.exit_code, 0, result.output)
+                output_data = self.load_output_yaml(output_file)
+                self.assertEqual(
+                    output_data['pipelineInfo']['name'], 'tiny-pipeline'
+                )
+
+    def test_compile_file_with_any_name_and_function(self):
+        pipeline_file = os.path.join(self.temp_dir.name, 'my.pipeline.py')
+        with open(self.create_pipeline_file().name, 'rb') as src:
+            with open(pipeline_file, 'wb') as dst:
+                dst.write(src.read())
+        output_file = os.path.join(self.temp_dir.name, 'output.yaml')
+
+        result = self.invoke(
+            [
+                '--py',
+                pipeline_file,
+                '--function',
+                'my_pipeline',
+                '--output',
+                output_file,
+            ]
+        )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        output_data = self.load_output_yaml(output_file)
+        self.assertEqual(output_data['pipelineInfo']['name'], 'tiny-pipeline')
+
     def test_compile_with_caching_flag_disabled(self):
         temp_pipeline = self.create_pipeline_file()
         output_file = os.path.join(self.temp_dir.name, 'test_output.yaml')

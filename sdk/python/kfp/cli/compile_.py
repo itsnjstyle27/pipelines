@@ -13,6 +13,7 @@
 # limitations under the License.
 """KFP SDK compiler CLI tool."""
 
+import importlib.util
 import json
 import logging
 import os
@@ -78,19 +79,33 @@ def collect_pipeline_or_component_from_module(
         )
 
 
+def load_module_from_file(python_file: str) -> types.ModuleType:
+    """Loads a .py file as a module, from its path.
+
+    Importing the file by its name would fail for a file name that isn't a
+    valid module name, such as ``my.pipeline.py``, and would return another
+    module for a file named like one that is already imported, such as
+    ``types.py``.
+    """
+    module_name = os.path.splitext(os.path.basename(python_file))[0]
+    spec = importlib.util.spec_from_file_location(module_name, python_file)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def collect_pipeline_or_component_func(
     python_file: str, function_name: Optional[str]
 ) -> base_component.BaseComponent:
     sys.path.insert(0, os.path.dirname(python_file))
     try:
         filename = os.path.basename(python_file)
-        module_name = os.path.splitext(filename)[0]
+        module = load_module_from_file(python_file)
         if function_name is None:
             return collect_pipeline_or_component_from_module(
-                target_module=__import__(module_name)
+                target_module=module
             )
 
-        module = __import__(module_name, fromlist=[function_name])
         if not hasattr(module, function_name):
             raise ValueError(
                 f'Pipeline function or component "{function_name}" not found in module {filename}.'
