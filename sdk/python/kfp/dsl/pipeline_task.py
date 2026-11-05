@@ -667,6 +667,14 @@ class PipelineTask:
         Returns:
             Self return to allow chained setting calls.
         """
+        if (
+            isinstance(num_retries, bool)
+            or not isinstance(num_retries, int)
+            or num_retries < 0
+        ):
+            raise ValueError(
+                f'num_retries must be a non-negative integer. Got: {num_retries!r}.'
+            )
         if policy is not None and policy not in self._VALID_RETRY_POLICIES:
             raise ValueError(
                 f'Invalid retry policy {policy!r}. '

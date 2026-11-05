@@ -545,6 +545,29 @@ class PipelineTaskTest(parameterized.TestCase):
         with self.assertRaisesRegex(ValueError, 'Invalid retry policy'):
             task.set_retry(num_retries=1, policy='BadValue')
 
+    @parameterized.parameters(-1, 1.5, '2', True)
+    def test_set_retry_invalid_num_retries_raises(self, num_retries):
+        task = pipeline_task.PipelineTask(
+            component_spec=structures.ComponentSpec.from_yaml_documents(
+                V2_YAML
+            ),
+            args={'input1': 'value'},
+        )
+        with self.assertRaisesRegex(
+            ValueError, 'num_retries must be a non-negative integer'
+        ):
+            task.set_retry(num_retries=num_retries)
+
+    def test_set_retry_zero_num_retries(self):
+        task = pipeline_task.PipelineTask(
+            component_spec=structures.ComponentSpec.from_yaml_documents(
+                V2_YAML
+            ),
+            args={'input1': 'value'},
+        )
+        task.set_retry(num_retries=0)
+        self.assertEqual(task._task_spec.retry_policy.max_retry_count, 0)
+
     def test_set_retry_valid_policies(self):
         for policy in ('Always', 'OnFailure', 'OnError', 'OnTransientError'):
             task = pipeline_task.PipelineTask(
