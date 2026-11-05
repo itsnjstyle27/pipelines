@@ -458,6 +458,20 @@ class PipelineTaskTest(parameterized.TestCase):
         task.set_env_variable('env_name', 'env_value')
         self.assertEqual({'env_name': 'env_value'}, task.container_spec.env)
 
+    @parameterized.parameters(5, 1.5, True, None)
+    def test_set_env_variable_non_string_value_raises(self, value):
+        task = pipeline_task.PipelineTask(
+            component_spec=structures.ComponentSpec.from_yaml_documents(
+                V2_YAML
+            ),
+            args={'input1': 'value'},
+        )
+        with self.assertRaisesRegex(
+            TypeError,
+            "The value of environment variable 'env_name' must be a string",
+        ):
+            task.set_env_variable('env_name', value)
+
     def test_set_debug_pause_default(self):
         task = pipeline_task.PipelineTask(
             component_spec=structures.ComponentSpec.from_yaml_documents(

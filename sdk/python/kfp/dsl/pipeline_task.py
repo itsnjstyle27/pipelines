@@ -750,6 +750,11 @@ class PipelineTask:
         Returns:
             Self return to allow chained setting calls.
         """
+        if not isinstance(value, str):
+            raise TypeError(
+                f'The value of environment variable {name!r} must be a string. '
+                f'Got {type(value).__name__}: {value!r}.'
+            )
         self._ensure_container_spec_exists()
 
         if self.container_spec.env is not None:
