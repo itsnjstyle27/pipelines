@@ -73,5 +73,26 @@ class TestIsPipelineOrComponent(unittest.TestCase):
         self.assertFalse(compile_.is_component_func(my_pipeline))
 
 
+class TestParseParameters(unittest.TestCase):
+    def test_no_parameters(self):
+        self.assertEqual(compile_.parse_parameters(None), {})
+
+    def test_json_object(self):
+        self.assertEqual(
+            compile_.parse_parameters('{"a": 1, "b": "x"}'), {'a': 1, 'b': 'x'}
+        )
+
+    def test_json_null(self):
+        self.assertEqual(compile_.parse_parameters('null'), {})
+
+    def test_json_value_that_is_not_an_object_raises(self):
+        for parameters in ['[1, 2]', '"a"', '1']:
+            with self.subTest(parameters=parameters):
+                with self.assertRaisesRegex(
+                    ValueError, '--pipeline-parameters must be a JSON object'
+                ):
+                    compile_.parse_parameters(parameters)
+
+
 if __name__ == '__main__':
     unittest.main()

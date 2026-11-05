@@ -103,13 +103,23 @@ def collect_pipeline_or_component_func(
 
 
 def parse_parameters(parameters: Optional[str]) -> Dict:
+    if parameters is None:
+        return {}
     try:
-        return json.loads(parameters) if parameters is not None else {}
+        parsed = json.loads(parameters)
     except json.JSONDecodeError as e:
         logging.error(
             f'Failed to parse --pipeline-parameters argument: {parameters}'
         )
         raise e
+    if parsed is None:
+        return {}
+    if not isinstance(parsed, dict):
+        raise ValueError(
+            '--pipeline-parameters must be a JSON object that maps parameter '
+            f'names to values, such as {{"a": 1}}. Got: {parameters}'
+        )
+    return parsed
 
 
 @click.command(name='compile')
