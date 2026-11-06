@@ -12,8 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import json
+import math
 import re
 from typing import Any, Callable
+
+
+def _reject_json_constant(name: str) -> None:
+    raise ValueError(f'{name} is not valid JSON.')
 
 
 def parse_parameter_value(value: str) -> Any:
@@ -30,8 +35,13 @@ def parse_parameter_value(value: str) -> Any:
         or str).
     """
     try:
-        parsed = json.loads(value)
-        if isinstance(parsed, (list, dict, int, float, bool, str, type(None))):
+        # json.loads accepts NaN and Infinity, but the value ends up in a JSON
+        # request body, which can't carry them.
+        parsed = json.loads(value, parse_constant=_reject_json_constant)
+        if isinstance(parsed, float):
+            if math.isfinite(parsed):
+                return parsed
+        elif isinstance(parsed, (list, dict, int, bool, str, type(None))):
             return parsed
     except (json.JSONDecodeError, ValueError):
         pass  # Not valid JSON, try other conversions
@@ -41,17 +51,21 @@ def parse_parameter_value(value: str) -> Any:
     if value.lower() == 'false':
         return False
 
+    # int() and float() accept Python's digit separators, such as 1_000.
+    if '_' in value:
+        return value
+
     try:
         return int(value)
     except ValueError:
         pass  # Not an integer, try float
 
     try:
-        return float(value)
+        parsed = float(value)
     except ValueError:
-        pass  # Not a number, return as string
+        return value  # Not a number, return as string
 
-    return value
+    return parsed if math.isfinite(parsed) else value
 
 
 def get_param_descr(fn: Callable, param_name: str) -> str:

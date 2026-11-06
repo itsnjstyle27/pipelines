@@ -134,6 +134,28 @@ class TestGetParamDescr(unittest.TestCase):
 class TestParseParameterValue(unittest.TestCase):
     """Tests for parse_parameter_value function."""
 
+    def test_values_json_cannot_carry_stay_strings(self):
+        # These parse as floats in Python, but the request body is JSON, which
+        # has no way to write them.
+        for value in (
+            'nan',
+            'NaN',
+            'inf',
+            '-inf',
+            'Infinity',
+            '-Infinity',
+            '1e999',
+            '[NaN]',
+        ):
+            with self.subTest(value=value):
+                self.assertEqual(parsing.parse_parameter_value(value), value)
+
+    def test_underscores_stay_strings(self):
+        # int() and float() accept Python's digit separators.
+        for value in ('1_000', '2024_01', '1_0.5'):
+            with self.subTest(value=value):
+                self.assertEqual(parsing.parse_parameter_value(value), value)
+
     def test_integer_positive(self):
         self.assertEqual(parsing.parse_parameter_value('123'), 123)
 
