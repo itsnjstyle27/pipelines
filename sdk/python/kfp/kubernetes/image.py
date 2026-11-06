@@ -37,6 +37,12 @@ def set_image_pull_secrets(
         Task object with updated image pull secret configuration.
     """
 
+    if isinstance(secret_names, str):
+        raise ValueError(
+            'secret_names must be a list of secret names. Got the string '
+            f'{secret_names!r}. Did you mean [{secret_names!r}]?'
+        )
+
     msg = common.get_existing_kubernetes_config_as_message(task)
 
     image_pull_secret = []

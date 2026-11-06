@@ -12,11 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pytest
 from google.protobuf import json_format
 from kfp import dsl, kubernetes
 
 
 class TestImagePullSecret:
+    def test_string_instead_of_list_raises(self):
+        # A string is iterable, so this used to add one secret per character.
+        with pytest.raises(ValueError, match=r"Did you mean \['regcred'\]"):
+
+            @dsl.pipeline
+            def my_pipeline():
+                task = comp()
+                kubernetes.set_image_pull_secrets(task, 'regcred')
+
     def test_add_one(self):
 
         @dsl.pipeline
