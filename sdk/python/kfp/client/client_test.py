@@ -206,7 +206,61 @@ class TestOverrideCachingOptions(parameterized.TestCase):
                 )
 
 
+_MINIMAL_PIPELINE_YAML = textwrap.dedent("""
+    components:
+      comp-foo:
+        executorLabel: exec-foo
+    deploymentSpec:
+      executors:
+        exec-foo:
+          container:
+            image: alpine
+    pipelineInfo:
+      name: my-pipeline
+    root:
+      dag:
+        tasks:
+          foo:
+            componentRef:
+              name: comp-foo
+            taskInfo:
+              name: foo
+    schemaVersion: 2.1.0
+    sdkVersion: kfp-2.0.0-beta.13
+    """)
+
+
 class TestExtractPipelineYAML(parameterized.TestCase):
+    @parameterized.parameters(
+        ('---\n',),
+        ('---\n---\n',),
+        ('---\n# nothing here\n',),
+    )
+    def test_extract_pipeline_yaml_trailing_empty_doc(self, trailing):
+        with tempfile.TemporaryDirectory() as tempdir:
+            temp_filepath = os.path.join(tempdir, 'pipeline.yaml')
+            with open(temp_filepath, 'w') as f:
+                f.write(_MINIMAL_PIPELINE_YAML + trailing)
+
+            pipeline_dict = client._extract_pipeline_yaml(
+                temp_filepath
+            ).to_dict()
+            self.assertEqual(
+                'my-pipeline', pipeline_dict['pipelineInfo']['name']
+            )
+
+    @parameterized.parameters(('',), ('---\n',))
+    def test_extract_pipeline_yaml_no_pipeline(self, content):
+        with tempfile.TemporaryDirectory() as tempdir:
+            temp_filepath = os.path.join(tempdir, 'pipeline.yaml')
+            with open(temp_filepath, 'w') as f:
+                f.write(content)
+
+            with self.assertRaisesRegex(
+                ValueError, 'The pipeline yaml file is empty'
+            ):
+                client._extract_pipeline_yaml(temp_filepath)
+
     def test_extract_pipeline_yaml_single_doc(self):
 
         with tempfile.TemporaryDirectory() as tempdir:

@@ -2016,10 +2016,19 @@ def _extract_pipeline_yaml(package_file: str) -> _PipelineDoc:
         pipeline_spec_dict = None
         platform_spec_dict = {}
         for doc in docs:
+            # A trailing '---' gives an empty document, which isn't part of the
+            # pipeline.
+            if doc is None:
+                continue
             if pipeline_spec_dict is None:
                 pipeline_spec_dict = doc
             else:
                 platform_spec_dict.update(doc)
+
+        if pipeline_spec_dict is None:
+            raise ValueError(
+                'Invalid package. The pipeline yaml file is empty.'
+            )
 
         return _PipelineDoc(
             pipeline_spec=json_format.ParseDict(
