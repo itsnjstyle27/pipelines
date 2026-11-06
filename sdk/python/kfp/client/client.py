@@ -1995,21 +1995,25 @@ def validate_pipeline_display_name(name: str) -> None:
 def _extract_pipeline_yaml(package_file: str) -> _PipelineDoc:
 
     def _choose_pipeline_file(file_list: List[str]) -> str:
-        pipeline_files = [file for file in file_list if file.endswith('.yaml')]
+        pipeline_files = [
+            file for file in file_list if file.endswith(('.yaml', '.yml'))
+        ]
         if not pipeline_files:
             raise ValueError(
                 'Invalid package. Missing pipeline yaml file in the package.'
             )
 
-        if 'pipeline.yaml' in pipeline_files:
-            return 'pipeline.yaml'
-        elif len(pipeline_files) == 1:
+        for preferred_name in ('pipeline.yaml', 'pipeline.yml'):
+            if preferred_name in pipeline_files:
+                return preferred_name
+
+        if len(pipeline_files) == 1:
             return pipeline_files[0]
-        else:
-            raise ValueError(
-                'Invalid package. There is no pipeline.json file or there '
-                'are multiple yaml files.'
-            )
+
+        raise ValueError(
+            'Invalid package. There is no pipeline.yaml file and there are '
+            'multiple yaml files.'
+        )
 
     def _safe_load_yaml(stream: TextIO) -> _PipelineDoc:
         docs = yaml.safe_load_all(stream)

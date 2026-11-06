@@ -12,12 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import io
 import json
 import os
 import sys
+import tarfile
 import tempfile
 import textwrap
 import unittest
+import zipfile
 from logging import WARNING
 from unittest.mock import MagicMock, Mock, patch
 
@@ -206,7 +209,93 @@ class TestOverrideCachingOptions(parameterized.TestCase):
                 )
 
 
+_MINIMAL_PIPELINE_YAML = textwrap.dedent("""
+    components:
+      comp-foo:
+        executorLabel: exec-foo
+    deploymentSpec:
+      executors:
+        exec-foo:
+          container:
+            image: alpine
+    pipelineInfo:
+      name: my-pipeline
+    root:
+      dag:
+        tasks:
+          foo:
+            componentRef:
+              name: comp-foo
+            taskInfo:
+              name: foo
+    schemaVersion: 2.1.0
+    sdkVersion: kfp-2.0.0-beta.13
+    """)
+
+
+def _write_archive(path: str, members: dict) -> None:
+    """Writes a .tar.gz or .zip file holding the given name to text members."""
+    if path.endswith('.zip'):
+        with zipfile.ZipFile(path, 'w') as archive:
+            for name, content in members.items():
+                archive.writestr(name, content)
+        return
+    with tarfile.open(path, 'w:gz') as archive:
+        for name, content in members.items():
+            data = content.encode('utf-8')
+            info = tarfile.TarInfo(name)
+            info.size = len(data)
+            archive.addfile(info, io.BytesIO(data))
+
+
 class TestExtractPipelineYAML(parameterized.TestCase):
+    @parameterized.parameters(
+        ('package.tar.gz', 'foo.yml'),
+        ('package.tgz', 'pipeline.yml'),
+        ('package.zip', 'foo.yml'),
+        ('package.tar.gz', 'foo.yaml'),
+    )
+    def test_extract_pipeline_yaml_from_archive(self, archive_name, member):
+        with tempfile.TemporaryDirectory() as tempdir:
+            archive_path = os.path.join(tempdir, archive_name)
+            _write_archive(archive_path, {member: _MINIMAL_PIPELINE_YAML})
+
+            pipeline_dict = client._extract_pipeline_yaml(
+                archive_path
+            ).to_dict()
+            self.assertEqual(
+                'my-pipeline', pipeline_dict['pipelineInfo']['name']
+            )
+
+    @parameterized.parameters(('pipeline.yaml',), ('pipeline.yml',))
+    def test_extract_pipeline_yaml_prefers_pipeline_name(self, member):
+        with tempfile.TemporaryDirectory() as tempdir:
+            archive_path = os.path.join(tempdir, 'package.tar.gz')
+            _write_archive(
+                archive_path,
+                {
+                    'other.yaml': 'not: a pipeline\n',
+                    member: _MINIMAL_PIPELINE_YAML,
+                },
+            )
+
+            pipeline_dict = client._extract_pipeline_yaml(
+                archive_path
+            ).to_dict()
+            self.assertEqual(
+                'my-pipeline', pipeline_dict['pipelineInfo']['name']
+            )
+
+    def test_extract_pipeline_yaml_ambiguous_archive_message(self):
+        with tempfile.TemporaryDirectory() as tempdir:
+            archive_path = os.path.join(tempdir, 'package.zip')
+            _write_archive(archive_path, {'a.yaml': '{}', 'b.yml': '{}'})
+
+            with self.assertRaisesRegex(
+                ValueError, 'There is no pipeline.yaml file'
+            ):
+                client._extract_pipeline_yaml(archive_path)
+
     def test_extract_pipeline_yaml_single_doc(self):
 
         with tempfile.TemporaryDirectory() as tempdir:
