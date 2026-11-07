@@ -86,10 +86,18 @@ def load_module_from_file(python_file: str) -> types.ModuleType:
     valid module name, such as ``my.pipeline.py``, and would return another
     module for a file named like one that is already imported, such as
     ``types.py``.
+
+    The module goes into ``sys.modules`` before it runs, as it would with an
+    import, because dataclasses and pickle look it up there. It gets a private
+    name when its own can't be imported or is taken, so that ``types.py``
+    doesn't replace the real ``types``.
     """
     module_name = os.path.splitext(os.path.basename(python_file))[0]
+    if '.' in module_name or module_name in sys.modules:
+        module_name = '_kfp_compile_' + module_name.replace('.', '_')
     spec = importlib.util.spec_from_file_location(module_name, python_file)
     module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
     spec.loader.exec_module(module)
     return module
 

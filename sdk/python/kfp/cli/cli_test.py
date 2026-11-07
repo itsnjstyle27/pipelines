@@ -17,6 +17,7 @@ import itertools
 import os
 import re
 import subprocess
+import sys
 import tempfile
 import unittest
 from typing import List
@@ -325,6 +326,67 @@ def my_pipeline():
                 self.assertEqual(
                     output_data['pipelineInfo']['name'], 'tiny-pipeline'
                 )
+
+    def write_pipeline_file(self, filename, before_pipeline=b''):
+        with open(self.create_pipeline_file().name, 'rb') as src:
+            pipeline_code = src.read()
+        pipeline_file = os.path.join(self.temp_dir.name, filename)
+        with open(pipeline_file, 'wb') as dst:
+            dst.write(before_pipeline + pipeline_code)
+        return pipeline_file
+
+    def test_compile_file_that_needs_its_own_module(self):
+        # dataclasses and pickle look a module up in sys.modules, so the file
+        # has to be there while it runs, as it would be after an import.
+        before_pipeline = b"""
+from __future__ import annotations
+
+import dataclasses
+import pickle
+
+
+@dataclasses.dataclass
+class Settings:
+    name: str = 'tiny'
+
+
+pickle.dumps(Settings())
+"""
+        for filename in ['needs_own_module.py', 'my.pipeline.py', 'types.py']:
+            with self.subTest(filename=filename):
+                pipeline_file = self.write_pipeline_file(
+                    filename, before_pipeline
+                )
+                output_file = os.path.join(self.temp_dir.name, 'output.yaml')
+
+                result = self.invoke(
+                    ['--py', pipeline_file, '--output', output_file]
+                )
+
+                self.assertEqual(result.exit_code, 0, result.output)
+
+    def test_compile_file_leaves_imported_module_alone(self):
+        pipeline_file = self.write_pipeline_file('yaml.py')
+        output_file = os.path.join(self.temp_dir.name, 'output.yaml')
+
+        result = self.invoke(['--py', pipeline_file, '--output', output_file])
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIs(sys.modules['yaml'], yaml)
+
+    def test_compile_file_that_imports_a_module_next_to_it(self):
+        with open(
+            os.path.join(self.temp_dir.name, 'next_to_my_pipeline.py'), 'w'
+        ) as f:
+            f.write('VALUE = 1\n')
+        pipeline_file = self.write_pipeline_file(
+            'my.pipeline.py', b'import next_to_my_pipeline\n'
+        )
+        output_file = os.path.join(self.temp_dir.name, 'output.yaml')
+
+        result = self.invoke(['--py', pipeline_file, '--output', output_file])
+
+        self.assertEqual(result.exit_code, 0, result.output)
 
     def test_compile_file_with_any_name_and_function(self):
         pipeline_file = os.path.join(self.temp_dir.name, 'my.pipeline.py')
